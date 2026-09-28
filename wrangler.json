@@ -9,6 +9,7 @@
 	},
 	"upload_source_maps": true,
 	"vars": {
-		"VALUE_FROM_CLOUDFLARE": "Hello from Cloudflare"
+		"VALUE_FROM_CLOUDFLARE": "NetQueue Lounge",
+		"NETQUEUE_API_URL": "http://127.0.0.1:8080"
 	}
 }

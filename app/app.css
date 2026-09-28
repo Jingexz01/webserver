@@ -1,16 +1,15 @@
-@import "tailwindcss" source(".");
+@import "tailwindcss";
 
-@theme {
-	--font-sans:
-		"Inter", ui-sans-serif, system-ui, sans-serif, "Apple Color Emoji",
-		"Segoe UI Emoji", "Segoe UI Symbol", "Noto Color Emoji";
-}
-
-html,
-body {
-	@apply bg-white dark:bg-gray-950;
-
-	@media (prefers-color-scheme: dark) {
-		color-scheme: dark;
-	}
-}
+:root { color: #17231f; background: #f4f1e9; font-family: "DM Sans", sans-serif; font-synthesis: none; }
+* { box-sizing: border-box; }
+body { margin: 0; min-width: 320px; }
+.site-shell { min-height: 100vh; background: radial-gradient(circle at 82% 0%, #dce9dc 0, transparent 34%), #f4f1e9; }
+.topbar { align-items: center; display: flex; justify-content: space-between; max-width: 1180px; margin: auto; padding: 28px 32px; }
+.brand { align-items: center; color: #17231f; display: flex; font-family: "Space Grotesk", sans-serif; font-size: 1.05rem; font-weight: 700; gap: 10px; text-decoration: none; }
+.brand-mark { align-items: center; background: #183d32; color: #e8eddf; display: inline-flex; font-size: .72rem; height: 31px; justify-content: center; letter-spacing: .04em; width: 31px; }
+.connection, .updated { color: #587066; font-size: .78rem; letter-spacing: .03em; }
+.connection { align-items: center; display: flex; gap: 8px; }.connection-dot { background: #54a176; border-radius: 50%; height: 8px; width: 8px; }.connection-offline .connection-dot { background: #bc6a50; }
+.hero { align-items: end; display: flex; justify-content: space-between; margin: 0 auto; max-width: 1180px; padding: 86px 32px 96px; }.hero-copy { max-width: 720px; }.eyebrow { color: #6a8275; font-size: .7rem; font-weight: 700; letter-spacing: .15em; margin: 0 0 18px; text-transform: uppercase; }.hero h1 { font-family: "Space Grotesk", sans-serif; font-size: clamp(3.2rem, 7vw, 6.5rem); font-weight: 500; letter-spacing: -.06em; line-height: .92; margin: 0; }.hero h1 em { color: #2f7558; font-style: normal; }.lede { color: #61736a; font-size: 1.05rem; line-height: 1.65; margin: 30px 0 0; max-width: 480px; }
+.hero-status { align-items: center; background: #183d32; color: #e8eddf; display: flex; gap: 18px; margin-bottom: 10px; padding: 24px 28px; }.status-ring { border: 2px solid #72b58a; border-radius: 50%; height: 42px; position: relative; width: 42px; }.status-ring:after { background: #72b58a; border-radius: 50%; content: ""; height: 8px; left: 15px; position: absolute; top: 15px; width: 8px; }.hero-status strong { display: block; font-family: "Space Grotesk", sans-serif; font-size: 2.5rem; font-weight: 500; line-height: 1; }.hero-status span:not(.status-ring) { color: #b5cec0; display: block; font-size: .72rem; margin-top: 6px; }
+.availability { background: #ebe8df; padding: 70px max(32px, calc((100% - 1116px) / 2)) 100px; }.section-heading { align-items: end; display: flex; justify-content: space-between; margin-bottom: 28px; }.section-heading h2 { font-family: "Space Grotesk", sans-serif; font-size: 2.1rem; font-weight: 500; letter-spacing: -.04em; margin: 0; }.section-heading .eyebrow { margin-bottom: 10px; }.zone-grid { display: grid; gap: 18px; grid-template-columns: repeat(2, minmax(0, 1fr)); }.zone-card { background: #f7f5ef; border: 1px solid #d8d9cd; padding: 27px; }.zone-card-accent { background: #e1eee3; border-color: #a9c8ae; }.zone-header { align-items: start; display: flex; justify-content: space-between; margin-bottom: 28px; }.zone-header h3 { font-family: "Space Grotesk", sans-serif; font-size: 1.35rem; font-weight: 600; margin: 0 0 5px; }.zone-header p { color: #708077; font-size: .82rem; margin: 0; }.zone-header strong { color: #2f7558; font-family: "Space Grotesk", sans-serif; font-size: 2.4rem; font-weight: 500; line-height: .85; }.zone-header small { font-family: "DM Sans", sans-serif; font-size: .72rem; }.count-empty { color: #a46b54 !important; }.station-list { border-top: 1px solid #dfe0d7; }.station-row { align-items: center; border-bottom: 1px solid #dfe0d7; display: grid; gap: 11px; grid-template-columns: 8px 70px 1fr auto; min-height: 52px; }.station-light { border-radius: 50%; height: 7px; width: 7px; }.station-available { background: #55a473; }.station-in-use { background: #c17a5b; }.station-offline { background: #b8954c; }.station-id { font-family: "Space Grotesk", sans-serif; font-size: .82rem; font-weight: 600; }.station-detail { color: #77867d; font-size: .75rem; }.station-status { font-size: .7rem; font-weight: 700; }.station-status-available { color: #39805b; }.station-status-in-use { color: #af6549; }.station-status-offline { color: #927236; }.empty-state { color: #77867d; font-size: .82rem; padding: 18px 0; }.site-footer { color: #718078; display: flex; font-size: .76rem; justify-content: space-between; margin: auto; max-width: 1180px; padding: 23px 32px 35px; }
+@media (max-width: 720px) { .topbar, .hero { padding-left: 20px; padding-right: 20px; }.hero { align-items: start; flex-direction: column; gap: 45px; padding-bottom: 68px; padding-top: 55px; }.hero-status { margin: 0; }.availability { padding-left: 20px; padding-right: 20px; }.section-heading { align-items: start; flex-direction: column; gap: 14px; }.zone-grid { grid-template-columns: 1fr; }.station-row { grid-template-columns: 8px 62px 1fr auto; }.station-detail { display: none; }.site-footer { padding-left: 20px; padding-right: 20px; } }
