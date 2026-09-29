@@ -1,15 +1,45 @@
 {
 	"$schema": "./node_modules/wrangler/config-schema.json",
-	"name": "react-router-starter-template",
+	"name": "webserver",
 	"main": "./workers/app.ts",
 	"compatibility_date": "2025-10-08",
-	"compatibility_flags": ["nodejs_compat"],
+	"compatibility_flags": [
+		"nodejs_compat"
+	],
 	"observability": {
 		"enabled": true
 	},
 	"upload_source_maps": true,
+	"routes": [
+		{
+			"pattern": "netqueue.jingexz01.space",
+			"custom_domain": true
+		}
+	],
 	"vars": {
-		"VALUE_FROM_CLOUDFLARE": "NetQueue Lounge",
-		"NETQUEUE_API_URL": "http://127.0.0.1:8080"
-	}
+		"VALUE_FROM_CLOUDFLARE": "NetQueue"
+	},
+	"durable_objects": {
+		"bindings": [
+			{
+				"name": "NETQUEUE_STATE",
+				"class_name": "NetQueueState"
+			}
+		]
+	},
+	"d1_databases": [
+		{
+			"binding": "NETQUEUE_DB",
+			"database_name": "netqueue",
+			"database_id": "4a80c9c6-b9ff-44c7-8e95-27a811d5d8f1"
+		}
+	],
+	"migrations": [
+		{
+			"tag": "v1",
+			"new_sqlite_classes": [
+				"NetQueueState"
+			]
+		}
+	]
 }
