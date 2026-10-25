@@ -26,7 +26,7 @@ async function readSnapshot(env: Env) {
 
 async function updateSnapshot(request: Request, env: Env) {
 	const authorization = request.headers.get("Authorization");
-	if (authorization !== `Bearer ${env.NETQUEUE_PUSH_TOKEN}`) {
+	if (!sameBytes(new TextEncoder().encode(authorization ?? ""), new TextEncoder().encode(`Bearer ${env.NETQUEUE_PUSH_TOKEN}`))) {
 		return new Response("Unauthorized", { status: 401 });
 	}
 	const contentLength = Number(request.headers.get("Content-Length"));
@@ -62,7 +62,12 @@ const SESSION_TTL_SECONDS = 60 * 60 * 24 * 7;
 function json(data: unknown, init: ResponseInit = {}) {
 	return new Response(JSON.stringify(data), {
 		...init,
-		headers: { "Content-Type": "application/json; charset=utf-8", ...init.headers },
+		headers: {
+			"Content-Type": "application/json; charset=utf-8",
+			"Cache-Control": "no-store",
+			"X-Content-Type-Options": "nosniff",
+			...init.headers,
+		},
 	});
 }
 
@@ -84,8 +89,8 @@ async function hmac(value: string, secret: string) {
 }
 
 async function passwordHash(password: string, salt: Uint8Array) {
-	const key = await crypto.subtle.importKey("raw", new TextEncoder().encode(password), "PBKDF2", false, ["deriveBits"]);
-	const bits = await crypto.subtle.deriveBits({ name: "PBKDF2", salt, iterations: 120_000, hash: "SHA-256" }, key, 256);
+	const key = await crypto.subtle.importKey("raw", new TextEncoder().encode(password), { name: "PBKDF2" }, false, ["deriveBits"]);
+	const bits = await crypto.subtle.deriveBits({ name: "PBKDF2", salt, iterations: 100_000, hash: "SHA-256" }, key, 256);
 	return base64Url(new Uint8Array(bits));
 }
 
@@ -116,7 +121,9 @@ async function userIdFromRequest(request: Request, secret: string) {
 async function readJson(request: Request) {
 	const contentLength = Number(request.headers.get("Content-Length"));
 	if (Number.isFinite(contentLength) && contentLength > 16_384) throw new Error("Request body is too large");
-	return request.json() as Promise<Record<string, unknown>>;
+	const body = await request.text();
+	if (body.length > 16_384) throw new Error("Request body is too large");
+	return JSON.parse(body) as Record<string, unknown>;
 }
 
 async function register(request: Request, env: Env) {
@@ -133,8 +140,12 @@ async function register(request: Request, env: Env) {
 	try {
 		await env.NETQUEUE_DB.prepare("INSERT INTO users (id, email, display_name, password_hash, password_salt, created_at) VALUES (?, ?, ?, ?, ?, ?)")
 			.bind(userId, email, displayName, await passwordHash(password, salt), base64Url(salt), new Date().toISOString()).run();
-	} catch {
-		return json({ error: "An account with that email already exists" }, { status: 409 });
+	} catch (error) {
+		console.error("Registration failed", error);
+		if (error instanceof Error && /unique|constraint/i.test(error.message)) {
+			return json({ error: "An account with that email already exists" }, { status: 409 });
+		}
+		return json({ error: "Account creation is temporarily unavailable" }, { status: 503 });
 	}
 	return json({ user: { id: userId, email, displayName } }, { headers: { "Set-Cookie": await sessionCookie(userId, env.NETQUEUE_SESSION_SECRET) } });
 }
@@ -182,7 +193,7 @@ async function bookings(request: Request, env: Env) {
 }
 
 async function javaBookings(request: Request, env: Env) {
-	if (request.headers.get("Authorization") !== `Bearer ${env.NETQUEUE_PUSH_TOKEN}`) return json({ error: "Unauthorized" }, { status: 401 });
+	if (!sameBytes(new TextEncoder().encode(request.headers.get("Authorization") ?? ""), new TextEncoder().encode(`Bearer ${env.NETQUEUE_PUSH_TOKEN}`))) return json({ error: "Unauthorized" }, { status: 401 });
 	const result = await env.NETQUEUE_DB.prepare("SELECT bookings.id, users.display_name AS displayName, users.email, bookings.zone, bookings.start_at AS startAt, bookings.end_at AS endAt, bookings.status FROM bookings JOIN users ON users.id = bookings.user_id WHERE bookings.status = 'scheduled' ORDER BY bookings.start_at").all();
 	return json({ bookings: result.results });
 }

@@ -59,6 +59,7 @@ export function Welcome({ locationName }: { locationName: string }) {
 		<main className="site-shell">
 			<header className="topbar">
 				<a className="brand" href="/" aria-label="NetQueue home"><span className="brand-mark">NQ</span><span>NetQueue</span></a>
+				<nav className="page-nav" aria-label="Primary navigation"><a className="nav-active" href="/">Availability</a><a href="/schedule">Schedule</a><a href="/account">Account</a></nav>
 				<span className="connection" aria-live="polite"><span className="connection-dot" />Live availability</span>
 			</header>
 			<section className="hero">
@@ -79,7 +80,6 @@ export function Welcome({ locationName }: { locationName: string }) {
 					<ZoneCard title="VIP" subtitle="Extra power, quieter setup" count={vipAvailable} stations={stations.filter((station) => station.zone === "VIP")} accent />
 				</div>
 			</section>
-			<AccountPanel />
 			<footer className="site-footer"><span>Arrive, check in, get online.</span><span>{data ? `${data.queueLength} ${data.queueLength === 1 ? "person" : "people"} waiting` : "Connecting to NetQueue..."}</span></footer>
 		</main>
 	);
