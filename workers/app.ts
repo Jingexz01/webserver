@@ -20,13 +20,16 @@ function stateObject(env: Env) {
 	return env.NETQUEUE_STATE.get(env.NETQUEUE_STATE.idFromName("main"));
 }
 
+function isJavaAuthorized(request: Request, env: Env) {
+	return request.headers.get("Authorization") === `Bearer ${env.NETQUEUE_PUSH_TOKEN}`;
+}
+
 async function readSnapshot(env: Env) {
 	return stateObject(env).fetch("https://netqueue-state/snapshot");
 }
 
 async function updateSnapshot(request: Request, env: Env) {
-	const authorization = request.headers.get("Authorization");
-	if (!sameBytes(new TextEncoder().encode(authorization ?? ""), new TextEncoder().encode(`Bearer ${env.NETQUEUE_PUSH_TOKEN}`))) {
+	if (!isJavaAuthorized(request, env)) {
 		return new Response("Unauthorized", { status: 401 });
 	}
 	const contentLength = Number(request.headers.get("Content-Length"));
@@ -182,9 +185,12 @@ async function bookings(request: Request, env: Env) {
 	try { body = await readJson(request); } catch { return json({ error: "Invalid booking request" }, { status: 400 }); }
 	const zone = body.zone === "VIP" ? "VIP" : body.zone === "Standard" ? "Standard" : "";
 	const startAt = typeof body.startAt === "string" ? Date.parse(body.startAt) : NaN;
-	const endAt = typeof body.endAt === "string" ? Date.parse(body.endAt) : NaN;
-	if (!zone || !Number.isFinite(startAt) || !Number.isFinite(endAt) || startAt < Date.now() || endAt <= startAt || endAt - startAt > 4 * 60 * 60 * 1000) {
-		return json({ error: "Choose a future booking within four hours" }, { status: 400 });
+	const durationMinutes = typeof body.durationMinutes === "number" && Number.isInteger(body.durationMinutes)
+		? body.durationMinutes : NaN;
+	const endAt = startAt + durationMinutes * 60 * 1000;
+	if (!zone || !Number.isFinite(startAt) || !Number.isInteger(durationMinutes) ||
+		durationMinutes < 1 || durationMinutes > 24 * 60 || startAt < Date.now()) {
+		return json({ error: "Choose a future booking and a duration between 1 minute and 24 hours" }, { status: 400 });
 	}
 	const bookingId = crypto.randomUUID();
 	await env.NETQUEUE_DB.prepare("INSERT INTO bookings (id, user_id, zone, start_at, end_at, created_at) VALUES (?, ?, ?, ?, ?, ?)")
@@ -192,9 +198,40 @@ async function bookings(request: Request, env: Env) {
 	return json({ booking: { id: bookingId, zone, startAt: new Date(startAt).toISOString(), endAt: new Date(endAt).toISOString(), status: "scheduled" } }, { status: 201 });
 }
 
+async function cancelBooking(request: Request, bookingId: string, env: Env) {
+	const isJavaClient = isJavaAuthorized(request, env);
+	const userId = await userIdFromRequest(request, env.NETQUEUE_SESSION_SECRET);
+	if (!isJavaClient && !userId) return json({ error: "Authentication required" }, { status: 401 });
+
+	const result = isJavaClient
+		? await env.NETQUEUE_DB.prepare("UPDATE bookings SET status = 'cancelled' WHERE id = ? AND status NOT IN ('cancelled', 'completed')").bind(bookingId).run()
+		: await env.NETQUEUE_DB.prepare("UPDATE bookings SET status = 'cancelled' WHERE id = ? AND user_id = ? AND status NOT IN ('cancelled', 'completed')").bind(bookingId, userId).run();
+	if (!result.meta.changes) return json({ error: "Booking not found" }, { status: 404 });
+	return new Response(null, { status: 204 });
+}
+
+async function updateBookingStatus(request: Request, bookingId: string, env: Env) {
+	if (!isJavaAuthorized(request, env)) {
+		return json({ error: "Unauthorized" }, { status: 401 });
+	}
+	let body: Record<string, unknown>;
+	try { body = await readJson(request); } catch { return json({ error: "Invalid booking status request" }, { status: 400 }); }
+	const status = body.status;
+	if (status !== "queued" && status !== "assigned" && status !== "completed") {
+		return json({ error: "Invalid booking status" }, { status: 400 });
+	}
+	const result = await env.NETQUEUE_DB.prepare("UPDATE bookings SET status = ? WHERE id = ? AND status NOT IN ('cancelled', 'completed')")
+		.bind(status, bookingId).run();
+	if (!result.meta.changes) return json({ error: "Booking not found or already closed" }, { status: 404 });
+	return json({ ok: true, bookingId, status });
+}
+
 async function javaBookings(request: Request, env: Env) {
-	if (!sameBytes(new TextEncoder().encode(request.headers.get("Authorization") ?? ""), new TextEncoder().encode(`Bearer ${env.NETQUEUE_PUSH_TOKEN}`))) return json({ error: "Unauthorized" }, { status: 401 });
-	const result = await env.NETQUEUE_DB.prepare("SELECT bookings.id, users.display_name AS displayName, users.email, bookings.zone, bookings.start_at AS startAt, bookings.end_at AS endAt, bookings.status FROM bookings JOIN users ON users.id = bookings.user_id WHERE bookings.status = 'scheduled' ORDER BY bookings.start_at").all();
+	if (!isJavaAuthorized(request, env)) {
+		return json({ error: "Unauthorized" }, { status: 401 });
+	}
+	const result = await env.NETQUEUE_DB.prepare("SELECT bookings.id, users.display_name AS displayName, users.email, bookings.zone, bookings.start_at AS startAt, bookings.end_at AS endAt, bookings.status FROM bookings JOIN users ON users.id = bookings.user_id WHERE bookings.status NOT IN ('cancelled', 'completed') AND bookings.end_at >= ? ORDER BY bookings.start_at")
+		.bind(new Date().toISOString()).all();
 	return json({ bookings: result.results });
 }
 
@@ -203,7 +240,7 @@ function isStationRecord(value: unknown): boolean {
 	const station = value as Record<string, unknown>;
 	return typeof station.id === "string" && station.id.length <= 32 &&
 		typeof station.zone === "string" && (station.zone === "VIP" || station.zone === "Standard") &&
-		typeof station.status === "string" && ["Available", "In Use", "Offline"].includes(station.status) &&
+		typeof station.status === "string" && ["Available", "In Use", "Maintenance"].includes(station.status) &&
 		typeof station.detail === "string" && station.detail.length <= 160;
 }
 
@@ -217,6 +254,10 @@ export default {
 		if (pathname === "/api/auth/me" && request.method === "GET") return currentUser(request, env);
 		if (pathname === "/api/auth/logout" && request.method === "POST") return json({ ok: true }, { headers: { "Set-Cookie": `${SESSION_COOKIE}=; HttpOnly; Secure; SameSite=Lax; Path=/; Max-Age=0` } });
 		if (pathname === "/api/bookings" && (request.method === "GET" || request.method === "POST")) return bookings(request, env);
+		const bookingMatch = pathname.match(/^\/api\/bookings\/([^/]+)$/);
+		if (bookingMatch && request.method === "DELETE") return cancelBooking(request, bookingMatch[1], env);
+		const bookingStatusMatch = pathname.match(/^\/api\/bookings\/([^/]+)\/status$/);
+		if (bookingStatusMatch && request.method === "POST") return updateBookingStatus(request, bookingStatusMatch[1], env);
 		if (pathname === "/api/bookings/java" && request.method === "GET") return javaBookings(request, env);
 		return requestHandler(request, {
 			cloudflare: { env, ctx },
